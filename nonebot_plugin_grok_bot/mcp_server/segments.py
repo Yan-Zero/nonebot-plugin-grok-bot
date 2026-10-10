@@ -8,7 +8,7 @@ from nonebot_plugin_alconna.uniseg import At, AtAll, Emoji, Image, Segment, Text
 from pydantic import BaseModel, Field
 
 from ..core.faces import FACES
-from ..core.rkey import with_rkey
+from ..core.media import download
 from . import stickers
 
 
@@ -19,7 +19,10 @@ class TextSegment(BaseModel):
 
 class ImageSegment(BaseModel):
     type: Literal["image"]
-    url: str | None = Field(default=None, description="图片链接，可直接用 Webhook 推送中的链接（会自动续签 rkey）")
+    url: str | None = Field(
+        default=None,
+        description="图片链接，由网关下载后发送（可用内网 / tailnet 地址；QQ 图片链接会自动续签 rkey）",
+    )
     base64: str | None = Field(default=None, description="base64 编码的图片数据")
 
 
@@ -61,7 +64,8 @@ async def to_segment(seg: OutSegment, session: str, bot: Bot) -> Segment:
         case StickerSegment(name=name):
             return await stickers.load(name, session, bot)
         case ImageSegment(url=str(url)):
-            return Image(url=await with_rkey(url, bot))
+            # 由 NoneBot 下载后以原始数据发送，协议端无需能访问该 url
+            return Image(raw=await download(url, bot))
         case ImageSegment(base64=str(b64)):
             return Image(raw=base64.b64decode(b64))
         case ImageSegment():

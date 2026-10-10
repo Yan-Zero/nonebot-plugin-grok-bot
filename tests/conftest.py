@@ -7,7 +7,7 @@ from nonebug import NONEBOT_INIT_KWARGS
 def pytest_configure(config: pytest.Config) -> None:
     config.stash[NONEBOT_INIT_KWARGS] = {
         "driver": "~fastapi+~httpx",
-        "grok_bot_owners": {"10000"},
+        "grok_bot_masters": {"10000"},
         "grok_bot_allowed_groups": {"123"},
         "grok_bot_routes": [
             {

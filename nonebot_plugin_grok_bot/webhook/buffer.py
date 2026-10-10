@@ -13,7 +13,7 @@ from .client import post
 
 config = get_plugin_config(Config)
 
-Trigger = Literal["owner", "interval", "size"]
+Trigger = Literal["master", "interval", "size"]
 
 
 def match_route(session: str) -> Route | None:
@@ -34,17 +34,17 @@ class SessionBuffer:
         self.pending.append(message)
         if not trigger:
             return
-        if self._owner_triggers(message):
-            self.flush("owner")
+        if self._master_triggers(message):
+            self.flush("master")
         elif self.route.flush_size and len(self.pending) >= self.route.flush_size:
             self.flush("size")
         elif self.route.flush_interval is not None and self.timer is None:
             self.timer = asyncio.create_task(self._wait(self.route.flush_interval))
 
-    def _owner_triggers(self, message: dict[str, Any]) -> bool:
-        if not message["sender"]["is_owner"]:
+    def _master_triggers(self, message: dict[str, Any]) -> bool:
+        if not message["sender"]["is_master"]:
             return False
-        return self.route.owner_trigger == "always" or (self.route.owner_trigger == "to_me" and message["to_me"])
+        return self.route.master_trigger == "always" or (self.route.master_trigger == "to_me" and message["to_me"])
 
     async def _wait(self, delay: float) -> None:
         await asyncio.sleep(delay)
@@ -94,7 +94,7 @@ def record_outgoing(session: str, message: dict[str, Any]) -> None:
 
 
 async def flush_all() -> None:
-    """退出前清空积压；只处理配置了自动推送的路由，其余积压只是等待 Owner 触发的上下文"""
+    """退出前清空积压；只处理配置了自动推送的路由，其余积压只是等待 Master 触发的上下文"""
     for buffer in _buffers.values():
         if buffer.route.flush_interval is not None or buffer.route.flush_size:
             buffer.flush("interval")

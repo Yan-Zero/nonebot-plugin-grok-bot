@@ -65,3 +65,38 @@ def to_onebot_message(raw: Any):
     if isinstance(raw, str):
         return Message(raw)
     return Message(MessageSegment(type=seg["type"], data=seg.get("data") or {}) for seg in raw)
+
+
+async def upload_file(bot: Bot, *, private: bool, target_id: str, file: str, name: str) -> Any:
+    """上传群文件 / 发送私聊文件
+
+    `file` 直接传 URL 或 `base64://...`，由 OneBot 实现自行下载或解码；
+    不使用本地路径，因为 NapCat 等实现常运行在容器中，无法访问 NoneBot 所在主机的文件
+    """
+    if private:
+        return await bot.call_api("upload_private_file", user_id=int(target_id), file=file, name=name)
+    return await bot.call_api("upload_group_file", group_id=int(target_id), file=file, name=name)
+
+
+async def fetch_file_url(bot: Bot, *, private: bool, target_id: str, file_id: str) -> dict[str, Any]:
+    """用收到的文件 file_id 换取下载链接（NapCat 扩展 API），返回 {url, name, size}"""
+    if not is_onebot(bot):
+        raise RuntimeError(f"适配器 {bot.adapter.get_name()} 不支持获取文件链接")
+    attempts: list[tuple[str, dict[str, Any]]] = (
+        [("get_private_file_url", {"file_id": file_id})]
+        if private
+        else [("get_group_file_url", {"group_id": int(target_id), "file_id": file_id})]
+    )
+    attempts.append(("get_file", {"file_id": file_id}))
+    errors: list[str] = []
+    for api, params in attempts:
+        try:
+            data = await bot.call_api(api, **params) or {}
+        except Exception as e:
+            errors.append(f"{api}: {e!r}")
+            continue
+        url = data.get("url") or data.get("file")
+        if isinstance(url, str) and url.startswith(("http://", "https://")):
+            return {"url": url, "name": data.get("file_name"), "size": data.get("file_size")}
+        errors.append(f"{api}: 未返回下载链接")
+    raise RuntimeError("获取文件链接失败：" + "；".join(errors))

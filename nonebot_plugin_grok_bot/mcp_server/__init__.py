@@ -27,7 +27,11 @@ if hosts := config.grok_bot_mcp_allowed_hosts:
         allowed_hosts=[*_LOCAL_HOSTS, *hosts],
         allowed_origins=[f"http://{h}" for h in _LOCAL_HOSTS] + [f"https://{h}" for h in hosts],
     )
-_app: ASGIApp = mcp.streamable_http_app(host=str(driver.config.host), transport_security=_security)
+_app: ASGIApp = mcp.streamable_http_app(
+    host=str(driver.config.host),
+    transport_security=_security,
+    max_request_body_size=config.grok_bot_mcp_max_body_size,
+)
 if config.grok_bot_mcp_token:
     _app = BearerAuth(_app, config.grok_bot_mcp_token)
 get_app().mount(config.grok_bot_mcp_prefix, _app)

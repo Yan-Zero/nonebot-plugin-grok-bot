@@ -47,7 +47,8 @@ async def _(bot: Bot, event: Event, msg: UniMsg) -> None:
         user_id,
         nickname,
         dump_segments(msg),
-        is_owner=user_id in config.grok_bot_owners,
+        group_role=getattr(sender, "role", None),
+        is_master=user_id in config.grok_bot_masters,
         to_me=event.is_tome(),
     )
     record_history(session, message)

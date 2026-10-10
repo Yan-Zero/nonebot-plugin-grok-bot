@@ -16,6 +16,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 def group_event(
     user_id: int, message: Message, message_id: int = 1, *, group_id: int = 123, to_me: bool = False
 ) -> GroupMessageEvent:
+    role = "owner" if user_id == 20000 else "member"
     return GroupMessageEvent(
         time=int(time.time()),
         self_id=1,
@@ -28,7 +29,8 @@ def group_event(
         original_message=message,
         raw_message=str(message),
         font=0,
-        sender={"user_id": user_id, "nickname": f"user{user_id}", "card": ""},
+        # 20000 是群主（group_role=owner），10000 是 Master，两者独立
+        sender={"user_id": user_id, "nickname": f"user{user_id}", "card": "", "role": role},
         to_me=to_me,
         group_id=group_id,
     )
@@ -71,7 +73,7 @@ def posts(requests: list[Request]) -> list[dict[str, Any]]:
     ]
 
 
-async def test_owner_to_me_flushes_with_pending_context(app: App, requests: list[Request]) -> None:
+async def test_master_to_me_flushes_with_pending_context(app: App, requests: list[Request]) -> None:
     async with app.test_matcher() as ctx:
         bot = ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
         ctx.receive_event(bot, group_event(20000, Message("路人发言"), 1))
@@ -84,9 +86,19 @@ async def test_owner_to_me_flushes_with_pending_context(app: App, requests: list
     assert str(req.url) == "http://hook.test/groups"
     assert req.headers["Authorization"] == "Bearer crsr_test"
     [payload] = posts(requests)
-    assert payload["trigger"] == "owner"
+    assert payload["trigger"] == "master"
     assert payload["session"] == "group:123"
     assert payload["session_name"] == "测试群"
+    # 群主（group_role=owner）与 Master 是两回事
+    assert payload["messages"][0]["sender"] | {"nickname": None} == {
+        "user_id": "20000",
+        "nickname": None,
+        "group_role": "owner",
+        "is_master": False,
+        "is_self": False,
+    }
+    assert payload["messages"][2]["sender"]["is_master"] is True
+    assert payload["messages"][2]["sender"]["group_role"] == "member"
     assert [m["message_id"] for m in payload["messages"]] == ["1", "2", "3"]
     assert payload["messages"][2]["segments"] == [
         {"type": "text", "text": "主人"},
@@ -151,7 +163,8 @@ async def test_send_message_mixed(app: App, requests: list[Request]) -> None:
                     [
                         MessageSegment.reply(99),
                         MessageSegment.text("看图"),
-                        MessageSegment.image("https://img.test/b.png"),
+                        # 图片由 NoneBot 下载后以 base64 发送
+                        MessageSegment.image(PNG),
                         MessageSegment.face(179),
                     ]
                 ),
@@ -279,3 +292,110 @@ async def test_forward_is_id_only_and_fetched_on_demand(app: App, requests: list
 
     sessions = await mcp.call_tool("list_sessions", {})
     assert {"session": "group:123", "name": "测试群"} in sessions.structured_content["result"]
+
+
+async def test_send_file(app: App, requests: list[Request]) -> None:
+    import base64
+
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from nonebot_plugin_grok_bot.mcp_server import mcp
+
+    content = base64.b64encode(b"hello file").decode()
+    async with app.test_api() as ctx:
+        ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
+        ctx.should_call_api(
+            "upload_group_file",
+            {"group_id": 123, "file": f"base64://{content}", "name": "a.txt"},
+            None,
+        )
+        result = await mcp.call_tool(
+            "send_file",
+            {"session": "group:123", "name": "a.txt", "base64": f"data:text/plain;base64,{content}"},
+        )
+        assert result.structured_content == {"ok": True, "name": "a.txt", "size": 10}
+
+        # url 由 NoneBot 下载（可为 tailnet 地址），再以 base64 交给 NapCat
+        ctx.should_call_api(
+            "upload_private_file",
+            {"user_id": 10000, "file": "base64://" + base64.b64encode(PNG).decode(), "name": "b.png"},
+            None,
+        )
+        url = "http://atri.tail9c544d.ts.net:8000/b.png"
+        result = await mcp.call_tool("send_file", {"session": "private:10000", "name": "b.png", "url": url})
+        assert result.structured_content["size"] == len(PNG)
+    assert [str(r.url) for r in requests if r.method == "GET"] == [url]
+
+    with pytest.raises(ToolError, match="二选一|需且仅需"):
+        await mcp.call_tool("send_file", {"session": "group:123", "name": "a.txt"})
+    with pytest.raises(ToolError, match="base64 内容无效"):
+        await mcp.call_tool("send_file", {"session": "group:123", "name": "a.txt", "base64": "!!!"})
+
+    history = await mcp.call_tool("get_history", {"session": "group:123", "limit": 1})
+    [last] = history.structured_content["result"]
+    assert last["segments"] == [{"type": "file", "name": "a.txt", "size": 10}]
+
+
+def test_dump_incoming_file() -> None:
+    from nonebot_plugin_alconna.uniseg import File, UniMessage
+
+    from nonebot_plugin_grok_bot.core.message import dump_segments
+
+    msg = UniMessage(File(id="fid", name="report.pdf", url="https://files.test/report.pdf"))
+    assert dump_segments(msg) == [
+        {"type": "file", "id": "fid", "name": "report.pdf", "size": None, "url": "https://files.test/report.pdf"}
+    ]
+
+
+async def test_incoming_file_and_get_file(app: App, requests: list[Request]) -> None:
+    from nonebot_plugin_grok_bot.mcp_server import mcp
+
+    # NapCat 的群文件消息段：没有 url，只有文件名与 file_id
+    file_seg = MessageSegment("file", {"file": "截图.png", "file_id": "/abc-123", "file_size": "20480"})
+    async with app.test_matcher() as ctx:
+        bot = ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
+        ctx.receive_event(bot, group_event(10000, Message(file_seg), 1, to_me=True))
+        ctx.should_call_api("get_group_info", {"group_id": 123}, {"group_id": 123, "group_name": "测试群"})
+    await drain()
+    [payload] = posts(requests)
+    assert payload["messages"][0]["segments"] == [
+        {"type": "file", "id": "/abc-123", "name": "截图.png", "size": "20480", "url": None}
+    ]
+
+    async with app.test_api() as ctx:
+        ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
+        ctx.should_call_api(
+            "get_group_file_url",
+            {"group_id": 123, "file_id": "/abc-123"},
+            {"url": "https://ftn.qq.test/dl?fname=a.png"},
+        )
+        result = await mcp.call_tool("get_file", {"file_id": "/abc-123", "session": "group:123"})
+    info = result.structured_content
+    assert info["url"] == "https://ftn.qq.test/dl?fname=a.png"
+
+    async with app.test_api() as ctx:
+        ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
+        # 私聊：get_private_file_url 不可用时回退到 get_file
+        ctx.should_call_api("get_private_file_url", {"file_id": "f2"}, exception=RuntimeError("unsupported"))
+        ctx.should_call_api(
+            "get_file",
+            {"file_id": "f2"},
+            {"url": "https://ftn.qq.test/dl2", "file_name": "照片.JPG", "file_size": 1024},
+        )
+        result = await mcp.call_tool("get_file", {"file_id": "f2", "session": "private:10000"})
+    info = result.structured_content
+    assert info["url"] == "https://ftn.qq.test/dl2"
+    assert "get_image" in info["hint"]
+
+
+async def test_download_size_limit(app: App, requests: list[Request], monkeypatch: pytest.MonkeyPatch) -> None:
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from nonebot_plugin_grok_bot.core import media
+    from nonebot_plugin_grok_bot.mcp_server import mcp
+
+    monkeypatch.setattr(media.config, "grok_bot_download_max_size", 8)
+    async with app.test_api() as ctx:
+        ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
+        with pytest.raises(ToolError, match="文件过大"):
+            await mcp.call_tool("send_file", {"session": "group:123", "name": "big.bin", "url": "http://x.test/big"})

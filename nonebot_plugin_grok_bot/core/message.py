@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from nonebot import logger
-from nonebot_plugin_alconna.uniseg import At, AtAll, Emoji, Image, Reference, Reply, Text, UniMessage
+from nonebot_plugin_alconna.uniseg import At, AtAll, Emoji, File, Image, Reference, Reply, Text, UniMessage
 
 from .faces import FACES
 
@@ -23,6 +23,8 @@ def dump_segments(message: UniMessage) -> list[dict[str, Any]]:
             ret.append({"type": "emoji", "id": seg.id, "name": seg.name or FACES.get(seg.id)})
         elif isinstance(seg, Image):
             ret.append({"type": "image", "url": seg.url, "sticker": seg.sticker})
+        elif isinstance(seg, File):
+            ret.append(_dump_file(seg))
         elif isinstance(seg, Reply):
             ret.append({"type": "reply", "message_id": seg.id})
         elif isinstance(seg, Reference):
@@ -34,6 +36,19 @@ def dump_segments(message: UniMessage) -> list[dict[str, Any]]:
     return ret
 
 
+def _dump_file(seg: File) -> dict[str, Any]:
+    # uniseg 在缺少 url 时会把文件名当作 url 并补上 https://，因此优先读取适配器原始数据
+    data: dict[str, Any] = getattr(getattr(seg, "origin", None), "data", None) or {}
+    url = data.get("url") if data else seg.url
+    return {
+        "type": "file",
+        "id": data.get("file_id") or seg.id,
+        "name": data.get("file_name") or data.get("file") or seg.name,
+        "size": data.get("file_size"),
+        "url": url if isinstance(url, str) and url.startswith(("http://", "https://")) else None,
+    }
+
+
 def build_message(
     session: str,
     session_name: str | None,
@@ -42,7 +57,8 @@ def build_message(
     nickname: str | None,
     segments: list[dict[str, Any]],
     *,
-    is_owner: bool = False,
+    group_role: str | None = None,
+    is_master: bool = False,
     is_self: bool = False,
     to_me: bool = False,
 ) -> dict[str, Any]:
@@ -51,7 +67,13 @@ def build_message(
         "session_name": session_name,
         "message_id": message_id,
         "time": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "sender": {"user_id": user_id, "nickname": nickname, "is_owner": is_owner, "is_self": is_self},
+        "sender": {
+            "user_id": user_id,
+            "nickname": nickname,
+            "group_role": group_role,
+            "is_master": is_master,
+            "is_self": is_self,
+        },
         "to_me": to_me,
         "segments": segments,
     }

@@ -10,7 +10,6 @@ from nonebot.plugin import get_plugin
 from nonebot_plugin_alconna.uniseg import Image
 
 from ..core.media import download, image_format
-from ..core.rkey import with_rkey
 from ..core.session import savepic_scope
 from .errors import expose_errors
 from .server import mcp
@@ -31,10 +30,11 @@ async def _url(name: str, session: str) -> str:
 
 
 async def load(name: str, session: str, bot: Bot) -> Image:
+    # 无论是链接还是本地路径，都由 NoneBot 读取后以原始数据发送：
+    # 协议端（如容器中的 NapCat）可能既访问不到该链接，也读不到 NoneBot 所在主机的路径
     url = await _url(name, session)
-    if url.startswith("http"):
-        return Image(url=await with_rkey(url, bot), sticker=True)
-    return Image(path=Path(url), sticker=True)
+    data = await download(url, bot) if url.startswith("http") else await anyio.Path(url).read_bytes()
+    return Image(raw=data, name=Path(url).name, sticker=True)
 
 
 def register_tools() -> None:

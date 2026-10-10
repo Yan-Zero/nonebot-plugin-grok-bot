@@ -22,7 +22,7 @@ def session_key(target: Target) -> str:
 def is_allowed(session: str) -> bool:
     kind, _, id_ = session.partition(":")
     if kind == "private":
-        return id_ in config.grok_bot_owners or id_ in config.grok_bot_allowed_users
+        return id_ in config.grok_bot_masters or id_ in config.grok_bot_allowed_users
     return id_ in config.grok_bot_allowed_groups
 
 
