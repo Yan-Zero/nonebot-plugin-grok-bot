@@ -1,15 +1,18 @@
 [project]
 name = "nonebot-plugin-grok-bot"
-version = "0.1.0"
-description = "NoneBot2 plugin bridging chats with Grok Bot via MCP server + webhook"
+version = "0.1.1"
+description = "通过 MCP Server 与 Webhook 将聊天接入 Grok Bot"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["nonebot", "nonebot2", "grok", "grok-bot", "mcp"]
 authors = [
     { name = "Yan", email = "1964649083@qq.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
     "anyio>=4.15.1",
-    "mcp>=1.9",
+    "mcp>=2.3",
     "nonebot-plugin-alconna>=0.57",
     "nonebot2>=2.4.0",
 ]
@@ -19,9 +22,15 @@ savepic = [
     "nonebot-plugin-savepic>=0.6.7",
 ]
 
+[project.urls]
+homepage = "https://github.com/Yan-Zero/nonebot-plugin-grok-bot"
+
 [build-system]
 requires = ["uv_build>=0.8.17,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
 
 [dependency-groups]
 dev = [

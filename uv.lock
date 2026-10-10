@@ -1596,7 +1596,7 @@ wheels = [
 
 [[package]]
 name = "nonebot-plugin-grok-bot"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
@@ -1624,7 +1624,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.15.1" },
-    { name = "mcp", specifier = ">=1.9" },
+    { name = "mcp", specifier = ">=2.3" },
     { name = "nonebot-plugin-alconna", specifier = ">=0.57" },
     { name = "nonebot-plugin-savepic", marker = "extra == 'savepic'", git = "https://github.com/Yan-Zero/nonebot-plugin-savepic" },
     { name = "nonebot2", specifier = ">=2.4.0" },

@@ -1,7 +1,7 @@
 """本地表情包，基于可选依赖 nonebot-plugin-savepic"""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import anyio
 from nonebot import logger
@@ -9,12 +9,11 @@ from nonebot.adapters import Bot
 from nonebot.plugin import get_plugin
 from nonebot_plugin_alconna.uniseg import Image
 
+from ..core.media import download, image_format
+from ..core.rkey import with_rkey
+from ..core.session import savepic_scope
 from .errors import expose_errors
-from .rkey import with_rkey
-from .session import download, image_format, savepic_scope
-
-if TYPE_CHECKING:
-    from mcp.server.mcpserver import MCPServer
+from .server import mcp
 
 
 def available() -> bool:
@@ -38,7 +37,7 @@ async def load(name: str, session: str, bot: Bot) -> Image:
     return Image(path=Path(url), sticker=True)
 
 
-def register_tools(mcp: "MCPServer") -> None:
+def register_tools() -> None:
     if not available():
         logger.info("未加载 nonebot-plugin-savepic，跳过表情包工具")
         return

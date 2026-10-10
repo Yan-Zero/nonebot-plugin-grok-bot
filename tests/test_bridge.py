@@ -49,13 +49,13 @@ def requests(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[Request]]:
     monkeypatch.setattr(get_driver(), "request", fake_request)
     yield sent
 
-    from nonebot_plugin_grok_bot import webhook
+    from nonebot_plugin_grok_bot.webhook import buffer as webhook
 
     webhook._buffers.clear()
 
 
 async def drain() -> None:
-    from nonebot_plugin_grok_bot import webhook
+    from nonebot_plugin_grok_bot.webhook import buffer as webhook
 
     for _ in range(10):
         await asyncio.sleep(0)
@@ -107,7 +107,7 @@ async def test_size_flush_keeps_image_url(app: App, requests: list[Request]) -> 
 
 
 async def test_get_image_renews_rkey(app: App, requests: list[Request]) -> None:
-    from nonebot_plugin_grok_bot import rkey
+    from nonebot_plugin_grok_bot.core import rkey
     from nonebot_plugin_grok_bot.mcp_server import mcp
 
     rkey._rkeys.clear()
