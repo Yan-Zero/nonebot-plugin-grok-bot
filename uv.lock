@@ -1644,8 +1644,8 @@ dev = [
 
 [[package]]
 name = "nonebot-plugin-savepic"
-version = "0.6.6"
-source = { git = "https://github.com/Yan-Zero/nonebot-plugin-savepic#12cd2ec80eeab2551b8fdea3b257c0466ae3e4ee" }
+version = "0.6.7"
+source = { git = "https://github.com/Yan-Zero/nonebot-plugin-savepic#69cbc0a413751ad0f7734b1c629e8b5fae17dc07" }
 dependencies = [
     { name = "asyncpg" },
     { name = "httpx" },

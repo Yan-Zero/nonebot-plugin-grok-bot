@@ -16,7 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 savepic = [
-    "nonebot-plugin-savepic>=0.6.1",
+    "nonebot-plugin-savepic>=0.6.7",
 ]
 
 [build-system]
