@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from nonebot import logger
-from nonebot_plugin_alconna.uniseg import At, AtAll, Emoji, Image, Reply, Text, UniMessage
+from nonebot_plugin_alconna.uniseg import At, AtAll, Emoji, Image, Reference, Reply, Text, UniMessage
 
 from .faces import FACES
 
@@ -25,6 +25,9 @@ def dump_segments(message: UniMessage) -> list[dict[str, Any]]:
             ret.append({"type": "image", "url": seg.url, "sticker": seg.sticker})
         elif isinstance(seg, Reply):
             ret.append({"type": "reply", "message_id": seg.id})
+        elif isinstance(seg, Reference):
+            # 合并转发只给 id，内容由 Grok Bot 按需通过 MCP get_forward_message 获取
+            ret.append({"type": "forward", "id": seg.id})
         else:
             logger.debug(f"未专门处理的消息段：{seg!r}")
             ret.append({"type": seg.type, "text": str(seg)})
@@ -33,6 +36,7 @@ def dump_segments(message: UniMessage) -> list[dict[str, Any]]:
 
 def build_message(
     session: str,
+    session_name: str | None,
     message_id: str | None,
     user_id: str,
     nickname: str | None,
@@ -44,6 +48,7 @@ def build_message(
 ) -> dict[str, Any]:
     return {
         "session": session,
+        "session_name": session_name,
         "message_id": message_id,
         "time": datetime.now().astimezone().isoformat(timespec="seconds"),
         "sender": {"user_id": user_id, "nickname": nickname, "is_owner": is_owner, "is_self": is_self},

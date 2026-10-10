@@ -6,8 +6,9 @@ from nonebot_plugin_alconna.uniseg import Reply, UniMessage
 from ..core.faces import FACES
 from ..core.media import download, image_format
 from ..core.message import build_message, dump_segments
+from ..core.onebot import fetch_forward_nodes, to_onebot_message
 from ..core.session import get_history as history_of
-from ..core.session import known_sessions, resolve_target
+from ..core.session import known_sessions, resolve_target, session_name
 from ..webhook import record_outgoing
 from .errors import expose_errors
 from .segments import OutSegment, to_segment
@@ -42,7 +43,13 @@ async def send_message(
     record_outgoing(
         session,
         build_message(
-            session, message_ids[0] if message_ids else None, bot.self_id, None, dump_segments(message), is_self=True
+            session,
+            session_name(session),
+            message_ids[0] if message_ids else None,
+            bot.self_id,
+            None,
+            dump_segments(message),
+            is_self=True,
         ),
     )
     return {"message_ids": message_ids}
@@ -50,9 +57,31 @@ async def send_message(
 
 @mcp.tool()
 @expose_errors
-async def list_sessions() -> list[str]:
-    """列出自启动以来收到过消息的会话"""
+async def list_sessions() -> list[dict[str, str | None]]:
+    """列出自启动以来收到过消息的会话及其名称（群名 / 私聊对象昵称）"""
     return known_sessions()
+
+
+@mcp.tool()
+@expose_errors
+async def get_forward_message(forward_id: str, session: str) -> list[dict[str, Any]]:
+    """获取合并转发（聊天记录）的内容。消息中 `{"type": "forward", "id": ...}` 消息段的 id 即为 forward_id；
+    返回的节点内若还有 forward 消息段，可继续用其 id 查询。
+
+    Args:
+        forward_id: 合并转发的 id
+        session: 该转发所在的会话，用于选择 bot 账号
+    """
+    bot = await resolve_target(session).select()
+    return [
+        {
+            "user_id": node["user_id"],
+            "nickname": node["nickname"],
+            "time": node["time"],
+            "segments": dump_segments(UniMessage.of(to_onebot_message(node["message"]), bot=bot)),
+        }
+        for node in await fetch_forward_nodes(bot, forward_id)
+    ]
 
 
 @mcp.tool()

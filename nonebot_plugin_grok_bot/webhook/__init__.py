@@ -6,7 +6,15 @@ from nonebot_plugin_alconna.uniseg import UniMsg, get_message_id, get_target
 
 from ..config import Config
 from ..core.message import build_message, dump_segments
-from ..core.session import is_allowed, record_history, remember_target, session_key
+from ..core.onebot import fetch_group_name
+from ..core.session import (
+    is_allowed,
+    record_history,
+    remember_target,
+    session_key,
+    session_name,
+    set_session_name,
+)
 from .buffer import flush_all, get_buffer
 from .buffer import record_outgoing as record_outgoing
 
@@ -29,8 +37,12 @@ async def _(bot: Bot, event: Event, msg: UniMsg) -> None:
     user_id = event.get_user_id()
     sender = getattr(event, "sender", None)
     nickname = getattr(sender, "card", None) or getattr(sender, "nickname", None)
+    if session_name(session) is None:
+        kind, _, id_ = session.partition(":")
+        set_session_name(session, await fetch_group_name(bot, id_) if kind == "group" else nickname)
     message = build_message(
         session,
+        session_name(session),
         get_message_id(event, bot),
         user_id,
         nickname,

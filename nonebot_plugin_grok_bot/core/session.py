@@ -32,6 +32,7 @@ def savepic_scope(session: str) -> str:
 
 
 _targets: dict[str, Target] = {}
+_names: dict[str, str] = {}
 _history: defaultdict[str, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=config.grok_bot_history_size))
 
 
@@ -57,8 +58,17 @@ def resolve_target(session: str, self_id: str | None = None) -> Target:
     return Target(id_, self_id=self_id)
 
 
-def known_sessions() -> list[str]:
-    return list(_targets)
+def known_sessions() -> list[dict[str, str | None]]:
+    return [{"session": s, "name": _names.get(s)} for s in _targets]
+
+
+def session_name(session: str) -> str | None:
+    return _names.get(session)
+
+
+def set_session_name(session: str, name: str | None) -> None:
+    if name:
+        _names[session] = name
 
 
 def record_history(session: str, message: dict[str, Any]) -> None:

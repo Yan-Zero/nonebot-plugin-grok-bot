@@ -28,6 +28,9 @@ class Config(BaseModel):
     """MCP 子应用挂载前缀，最终端点为 `{prefix}/mcp`"""
     grok_bot_mcp_token: str | None = None
     """MCP 端点的 Bearer Token，未设置则不鉴权（仅建议本地调试）"""
+    grok_bot_mcp_allowed_hosts: list[str] = Field(default_factory=list)
+    """额外允许的 Host 头，如 `mybox.tail1234.ts.net`（支持 `host:*` 匹配任意端口）。
+    HOST 为 127.0.0.1 时 mcp 默认只允许 localhost，经 tailscale serve 等反代访问时需要在这里添加"""
 
     # Webhook（NoneBot -> Grok Bot，用于推送收到的消息）
     grok_bot_owners: set[str] = Field(default_factory=set)

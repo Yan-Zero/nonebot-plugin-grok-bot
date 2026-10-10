@@ -8,7 +8,7 @@ from typing import Any, Literal
 from nonebot import get_plugin_config
 
 from ..config import Config, Route
-from ..core.session import record_history
+from ..core.session import record_history, session_name
 from .client import post
 
 config = get_plugin_config(Config)
@@ -61,6 +61,7 @@ class SessionBuffer:
             "route": self.route.name,
             "trigger": trigger,
             "session": self.session,
+            "session_name": session_name(self.session),
             "messages": list(self.pending),
         }
         self.pending.clear()

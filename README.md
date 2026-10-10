@@ -77,7 +77,24 @@ _✨ 通过 MCP Server 与 Webhook 将聊天接入 Grok Bot ✨_
 
     DRIVER=~fastapi+~httpx+~aiohttp
 
-Grok Bot 只能访问公网或 Tailscale 网络内的地址，`HOST` 需要绑定到对应网卡（例如 Tailscale IP 或 `0.0.0.0`）。
+### 通过 Tailscale 暴露 MCP 端点
+
+NoneBot 保持监听 `127.0.0.1`，由 Tailscale 只转发 MCP 路径（不要把整个端口暴露出去，否则 OneBot 的连接端点也会一起暴露）：
+
+    # 仅 tailnet 内可访问（Grok Bot 所在机器需加入同一 tailnet）
+    tailscale serve --bg --set-path /grok_bot http://127.0.0.1:8080/grok_bot
+
+    # 或：公网可访问（需在 tailnet ACL 中为该节点开启 funnel）
+    tailscale funnel --bg --set-path /grok_bot http://127.0.0.1:8080/grok_bot
+
+    # 查看 / 撤销
+    tailscale serve status
+    tailscale serve reset
+
+需要在 Tailscale 管理后台开启 MagicDNS 与 HTTPS 证书。之后在 `.env.prod` 中把域名加入 `GROK_BOT_MCP_ALLOWED_HOSTS`，并在 Grok Bot 中添加 MCP 连接器：
+
+- URL：`https://mybox.tail1234.ts.net/grok_bot/mcp`
+- Secret：`Authorization: Bearer <GROK_BOT_MCP_TOKEN>`
 
 在 nonebot2 项目的`.env`文件中添加下表中的必填配置
 
@@ -85,6 +102,7 @@ Grok Bot 只能访问公网或 Tailscale 网络内的地址，`HOST` 需要绑�
 |:-----:|:----:|:----:|:----:|
 | GROK_BOT_MCP_PREFIX | 否 | `/grok_bot` | MCP 端点为 `{prefix}/mcp` |
 | GROK_BOT_MCP_TOKEN | 否 | 无 | MCP 端点的 Bearer Token，在 Grok Bot 中存为 `Authorization` secret；不设置则不鉴权 |
+| GROK_BOT_MCP_ALLOWED_HOSTS | 否 | `[]` | 额外允许的 Host 头，经 `tailscale serve` 等反代访问时填写域名，如 `["mybox.tail1234.ts.net"]` |
 | GROK_BOT_OWNERS | 是 | `[]` | Owner 的用户 ID |
 | GROK_BOT_ALLOWED_USERS | 否 | `[]` | 除 Owner 外允许私聊的用户 ID |
 | GROK_BOT_ALLOWED_GROUPS | 否 | `[]` | 允许的群号（频道为 `<guild>/<channel>`） |
@@ -154,9 +172,11 @@ Grok Bot 只能访问公网或 Tailscale 网络内的地址，`HOST` 需要绑�
   "route": "groups",
   "trigger": "owner",
   "session": "group:123456",
+  "session_name": "某某群",
   "messages": [
     {
       "session": "group:123456",
+      "session_name": "某某群",
       "message_id": "1001",
       "time": "2026-10-10T18:00:00+08:00",
       "sender": {"user_id": "10000", "nickname": "Yan", "is_owner": true, "is_self": false},
@@ -164,14 +184,15 @@ Grok Bot 只能访问公网或 Tailscale 网络内的地址，`HOST` 需要绑�
       "segments": [
         {"type": "text", "text": "看看这个"},
         {"type": "image", "url": "https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=…&rkey=…", "sticker": false},
-        {"type": "emoji", "id": "14", "name": "微笑"}
+        {"type": "emoji", "id": "14", "name": "微笑"},
+        {"type": "forward", "id": "7391..."}
       ]
     }
   ]
 }
 ```
 
-`trigger` 为 `owner` / `size` / `interval`。图片直接给原始链接，插件不缓存。QQ 图片链接里的 rkey 会过期，通过 MCP `get_image(url)` 查看或在 `send_message` 中转发时，插件会自动调用 `get_rkey` 重新签发（需要 NapCat / LLOneBot 等支持该扩展 API 的实现）。
+`trigger` 为 `owner` / `size` / `interval`。`session_name` 为群名（OneBot `get_group_info`，首次收到该群消息时获取并缓存）或私聊对象昵称。合并转发（聊天记录）只给出 `id`，需要时通过 MCP `get_forward_message` 查看。图片直接给原始链接，插件不缓存。QQ 图片链接里的 rkey 会过期，通过 MCP `get_image(url)` 查看或在 `send_message` 中转发时，插件会自动调用 `get_rkey` 重新签发（需要 NapCat / LLOneBot 等支持该扩展 API 的实现）。
 
 ### MCP 工具
 
@@ -180,7 +201,8 @@ Grok Bot 只能访问公网或 Tailscale 网络内的地址，`HOST` 需要绑�
 | `send_message(session, segments, reply_to?, self_id?)` | 发送消息，消息段类型有 `text` / `image`（`url` / `base64`）/ `emoji` / `sticker` / `at` / `at_all` |
 | `get_history(session, limit)` | 会话最近消息，格式同 Webhook |
 | `get_image(url, session?)` | 查看图片，QQ 链接自动续签 rkey |
-| `list_sessions()` | 收到过消息的会话 |
+| `list_sessions()` | 收到过消息的会话及名称 |
+| `get_forward_message(forward_id, session)` | 查看合并转发（聊天记录）内容，嵌套转发同样只给 id |
 | `list_emojis()` | QQ 内置表情 ID → 名称 |
 | `search_stickers(query, session, limit)` | 搜索本地表情包（需 savepic） |
 | `view_sticker(name, session)` | 查看表情包图片（需 savepic） |
