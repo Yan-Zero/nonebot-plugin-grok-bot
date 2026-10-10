@@ -160,7 +160,7 @@ async def get_forward_message(forward_id: str, session: str) -> list[dict[str, A
             "user_id": node["user_id"],
             "nickname": node["nickname"],
             "time": node["time"],
-            "segments": dump_segments(UniMessage.of(to_onebot_message(node["message"]), bot=bot)),
+            "segments": dump_segments(UniMessage.of(to_onebot_message(node["message"]), bot=bot), bot),
         }
         for node in await fetch_forward_nodes(bot, forward_id)
     ]

@@ -196,7 +196,7 @@ NoneBot 保持监听 `127.0.0.1`，由 Tailscale 只转发 MCP 路径（不要�
 }
 ```
 
-`trigger` 为 `master` / `size` / `interval`。`sender.is_master` 表示是否为 Master（Bot 主人，由配置指定）；`sender.group_role` 是群内身份（`owner` 群主 / `admin` 管理员 / `member` 成员，私聊为 `null`），两者互不相关。`session_name` 为群名（OneBot `get_group_info`，首次收到该群消息时获取并缓存）或私聊对象昵称。合并转发（聊天记录）只给出 `id`，需要时通过 MCP `get_forward_message` 查看；收到的文件通常不带下载链接（`url` 为 `null`），需要时通过 MCP `get_file` 换取。图片直接给原始链接，插件不缓存。QQ 图片链接里的 rkey 会过期，通过 MCP `get_image(url)` 查看或在 `send_message` 中转发时，插件会自动调用 `get_rkey` 重新签发（需要 NapCat / LLOneBot 等支持该扩展 API 的实现）。
+`trigger` 为 `master` / `size` / `interval`。`sender.is_master` 表示是否为 Master（Bot 主人，由配置指定）；`sender.group_role` 是群内身份（`owner` 群主 / `admin` 管理员 / `member` 成员，私聊为 `null`），两者互不相关。`session_name` 为群名（OneBot `get_group_info`，首次收到该群消息时获取并缓存）或私聊对象昵称。引用消息以 `{"type": "reply", "message_id", "sender", "segments"}` 出现在消息开头，附带被引用消息的发送者与内容（只展开一层）。合并转发（聊天记录）只给出 `id`，需要时通过 MCP `get_forward_message` 查看；收到的文件通常不带下载链接（`url` 为 `null`），需要时通过 MCP `get_file` 换取。图片直接给原始链接，插件不缓存。QQ 图片链接里的 rkey 会过期，通过 MCP `get_image(url)` 查看或在 `send_message` 中转发时，插件会自动调用 `get_rkey` 重新签发（需要 NapCat / LLOneBot 等支持该扩展 API 的实现）。
 
 ### MCP 工具
 

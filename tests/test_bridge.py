@@ -399,3 +399,34 @@ async def test_download_size_limit(app: App, requests: list[Request], monkeypatc
         ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
         with pytest.raises(ToolError, match="文件过大"):
             await mcp.call_tool("send_file", {"session": "group:123", "name": "big.bin", "url": "http://x.test/big"})
+
+
+async def test_quoted_forward_is_attached(app: App, requests: list[Request]) -> None:
+    """复现：Master 引用一条合并转发并问“你能看到内容吗？”，推送中应带上引用及其中的 forward id"""
+    from nonebot.adapters.onebot.v11.event import Reply as OBReply
+
+    event = group_event(10000, Message("你能看到内容吗？"), 5, to_me=True)
+    event.reply = OBReply(
+        time=int(time.time()),
+        message_type="group",
+        message_id=4,
+        real_id=4,
+        sender={"user_id": 20000, "nickname": "user20000", "card": "转发者"},
+        message=Message(MessageSegment("forward", {"id": "fw-quoted"})),
+    )
+    async with app.test_matcher() as ctx:
+        bot = ctx.create_bot(base=Bot, adapter=get_adapter(Adapter), self_id="1")
+        ctx.receive_event(bot, event)
+        ctx.should_call_api("get_group_info", {"group_id": 123}, {"group_id": 123, "group_name": "测试群"})
+    await drain()
+
+    [payload] = posts(requests)
+    assert payload["messages"][0]["segments"] == [
+        {
+            "type": "reply",
+            "message_id": "4",
+            "sender": {"user_id": "20000", "nickname": "转发者"},
+            "segments": [{"type": "forward", "id": "fw-quoted"}],
+        },
+        {"type": "text", "text": "你能看到内容吗？"},
+    ]

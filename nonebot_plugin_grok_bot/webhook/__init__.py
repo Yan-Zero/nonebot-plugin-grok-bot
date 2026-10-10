@@ -1,8 +1,8 @@
 """NoneBot -> Grok Bot：监听消息，按路由推送到 Routine Webhook"""
 
-from nonebot import get_driver, get_plugin_config, on_message
+from nonebot import get_driver, get_plugin_config, logger, on_message
 from nonebot.adapters import Bot, Event
-from nonebot_plugin_alconna.uniseg import UniMsg, get_message_id, get_target
+from nonebot_plugin_alconna.uniseg import UniMessage, UniMsg, get_message_id, get_target
 
 from ..config import Config
 from ..core.message import build_message, dump_segments
@@ -40,13 +40,18 @@ async def _(bot: Bot, event: Event, msg: UniMsg) -> None:
     if session_name(session) is None:
         kind, _, id_ = session.partition(":")
         set_session_name(session, await fetch_group_name(bot, id_) if kind == "group" else nickname)
+    try:
+        # OneBot 等适配器会把引用从消息中摘出放到 event.reply，这里重新附加回消息开头
+        msg = await UniMessage.of(event.get_message(), bot=bot).attach_reply(event, bot)
+    except Exception as e:
+        logger.debug(f"附加引用消息失败：{e!r}")
     message = build_message(
         session,
         session_name(session),
         get_message_id(event, bot),
         user_id,
         nickname,
-        dump_segments(msg),
+        dump_segments(msg, bot),
         group_role=getattr(sender, "role", None),
         is_master=user_id in config.grok_bot_masters,
         to_me=event.is_tome(),

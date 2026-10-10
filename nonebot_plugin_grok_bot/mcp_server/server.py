@@ -16,7 +16,9 @@ INSTRUCTIONS = """\
 
 ## 消息段
 推送中的 `segments` 与 send_message 的入参使用同一套格式：
-- `text`：文字；`at` / `at_all`：@某人 / @全体；`reply`：引用回复（发送时用 reply_to 参数）。
+- `text`：文字；`at` / `at_all`：@某人 / @全体。
+- `reply`：引用。收到的消息中会附带被引用消息的发送者与内容（`sender`、`segments`，只展开一层）；
+  被引用的若是合并转发，其中会有 `forward` 段，再用 get_forward_message 查看。发送引用时用 reply_to 参数。
 - `emoji`：QQ 内置表情，`list_emojis` 可查 ID 与名称。
 - `image`：图片，带 `url`，用 `get_image(url)` 查看内容；QQ 图片链接过期会自动续签。
 - `file`：文件，通常不带下载链接，用 `get_file(id, session)` 换取；图片文件可再用 `get_image` 查看。
